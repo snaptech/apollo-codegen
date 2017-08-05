@@ -130,7 +130,7 @@ export function interfaceVariablesDeclarationForOperation(
     return null;
   }
   const interfaceName =
-    `${interfaceNameFromOperation({operationName, operationType})}${generator.options.variablesTypePostfix}`;
+    `${interfaceNameFromOperation({operationName, operationType})}${generator.options.variablesTypePostfix||'Variables'}`;
 
   interfaceDeclaration(generator, {
     interfaceName,

@@ -274,7 +274,7 @@ exports[`TypeScript code generation #generateSource() should generate simple nes
 export type StarshipCoordsQuery = {
   starship:  {
     __typename: \\"Starship\\",
-    coordinates: Array< Array< number > > | null,
+    coordinates: Array<Array<number>> | null,
   } | null,
 };
 /* tslint:enable */

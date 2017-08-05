@@ -30,6 +30,7 @@ export function interfaceDeclaration(generator, { interfaceName, noBrackets }, c
     generator.withinBlock(closure, '{', '}');
   }
   generator.popScope();
+  generator.print(';');
 }
 
 

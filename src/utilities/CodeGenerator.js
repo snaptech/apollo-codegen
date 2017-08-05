@@ -4,9 +4,10 @@ import {
 } from './printing';
 
 export default class CodeGenerator {
-  constructor(context) {
+  constructor(context, options) {
     this.context = context;
-    
+    this.options = options || {};
+
     this.scopeStack = [];
 
     this.indentWidth = 2;

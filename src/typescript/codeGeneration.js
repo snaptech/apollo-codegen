@@ -9,10 +9,11 @@ import {
   GraphQLList,
   GraphQLNonNull,
   GraphQLID,
+  GraphQLObjectType,
   GraphQLInputObjectType
 } from 'graphql'
 
-import  { isTypeProperSuperTypeOf } from '../utilities/graphql';
+import {getNamedTypeString, getOperationSchemaDef, isTypeProperSuperTypeOf} from '../utilities/graphql';
 
 import * as Inflector from 'inflected';
 
@@ -24,7 +25,7 @@ import {
 import CodeGenerator from '../utilities/CodeGenerator';
 
 import {
-  interfaceDeclaration,
+  interfaceDeclaration, operationDeclaration,
   propertyDeclaration,
   propertySetsDeclaration
 } from './language';
@@ -33,14 +34,14 @@ import {
   typeNameFromGraphQLType,
 } from './types';
 
-export function generateSource(context) {
-  const generator = new CodeGenerator(context);
+export function generateSource(context, options) {
+  const generator = new CodeGenerator(context, options);
 
   generator.printOnNewline('/* tslint:disable */');
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');
 
   typeDeclarationForGraphQLType(context.typesUsed.forEach(type =>
-    typeDeclarationForGraphQLType(generator, type)
+    typeDeclarationForGraphQLType(generator, type, options)
   ));
   Object.values(context.operations).forEach(operation => {
     interfaceVariablesDeclarationForOperation(generator, operation);
@@ -56,10 +57,12 @@ export function generateSource(context) {
   return generator.output;
 }
 
-export function typeDeclarationForGraphQLType(generator, type) {
+export function typeDeclarationForGraphQLType(generator, type, options) {
   if (type instanceof GraphQLEnumType) {
     enumerationDeclaration(generator, type);
   } else if (type instanceof GraphQLInputObjectType) {
+    structDeclarationForInputObjectType(generator, type);
+  } else if (type instanceof GraphQLObjectType && (options.scriptAllCustomTypes||options.scriptUsedCustomTypes)) {
     structDeclarationForInputObjectType(generator, type);
   }
 }
@@ -126,7 +129,8 @@ export function interfaceVariablesDeclarationForOperation(
   if (!variables || variables.length < 1) {
     return null;
   }
-  const interfaceName = `${interfaceNameFromOperation({operationName, operationType})}Variables`;
+  const interfaceName =
+    `${interfaceNameFromOperation({operationName, operationType})}${generator.options.variablesTypePostfix}`;
 
   interfaceDeclaration(generator, {
     interfaceName,
@@ -149,27 +153,39 @@ export function interfaceDeclarationForOperation(
   }
 ) {
   const interfaceName = interfaceNameFromOperation({operationName, operationType});
-  fields = fields.map(rootField => {
-    const fields = rootField.fields.map(field => {
-      if (field.fieldName === '__typename') {
-        return {
-          ...field,
-          typeName: `"${rootField.type.name}"`,
-          type: { name: `"${rootField.type.name}"` },
-        };
-      }
-      return field;
+
+  let operationSchema = null, properties = null;
+  if (generator.options.preferInterfaces) {
+    operationSchema = getOperationSchemaDef(generator.context.schema, operationName);
+  }
+  if ( !operationSchema ) {
+    fields = fields.map(rootField => {
+      const fields = (rootField.fields || []).map(field => {
+        if (field.fieldName === '__typename') {
+          return {
+            ...field,
+            typeName: `"${rootField.type.name}"`,
+            type: {name: `"${rootField.type.name}"`},
+          };
+        }
+        return field;
+      });
+      return {
+        ...rootField,
+        fields,
+      };
     });
-    return {
-      ...rootField,
-      fields,
-    };
-  });
-  const properties = propertiesFromFields(generator.context, fields);
+
+    properties = propertiesFromFields(generator.context, fields);
+  }
   interfaceDeclaration(generator, {
     interfaceName,
   }, () => {
-    propertyDeclarations(generator, properties);
+    if ( !operationSchema ) {
+      propertyDeclarations(generator, properties);
+    } else {
+      operationDeclaration(generator, operationSchema);
+    }
   });
 }
 

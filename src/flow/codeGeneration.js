@@ -33,8 +33,8 @@ import {
   typeNameFromGraphQLType,
 } from './types';
 
-export function generateSource(context) {
-  const generator = new CodeGenerator(context);
+export function generateSource(context, options) {
+  const generator = new CodeGenerator(context, options);
 
   generator.printOnNewline('/* @flow */');
   generator.printOnNewline('//  This file was automatically generated and should not be edited.');

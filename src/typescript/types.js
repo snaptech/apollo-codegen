@@ -16,8 +16,10 @@ import {
   GraphQLList,
   GraphQLNonNull,
   GraphQLScalarType,
-  GraphQLEnumType
+  GraphQLEnumType,
+  Kind
 } from 'graphql';
+import {ToolError} from "../errors";
 
 const builtInScalarMap = {
   [GraphQLString.name]: 'string',
@@ -34,7 +36,7 @@ export function typeNameFromGraphQLType(context, type, bareTypeName, nullable = 
 
   let typeName;
   if (type instanceof GraphQLList) {
-    typeName = `Array< ${typeNameFromGraphQLType(context, type.ofType, bareTypeName, true)} >`;
+    typeName = `Array<${typeNameFromGraphQLType(context, type.ofType, bareTypeName, true)}>`;
   } else if (type instanceof GraphQLScalarType) {
     typeName = builtInScalarMap[type.name] || (context.passthroughCustomScalars ? context.customScalarsPrefix + type.name: builtInScalarMap[GraphQLString.name]);
   } else {
@@ -42,4 +44,18 @@ export function typeNameFromGraphQLType(context, type, bareTypeName, nullable = 
   }
 
   return nullable ? typeName + ' | null' : typeName;
+}
+
+export function getTypeString(type, parentType) {
+  if (type.kind === Kind.LIST_TYPE) {
+    return 'Array<' + getTypeString(type.type, type) + (type.type.kind !== Kind.NON_NULL_TYPE ? ' | null':'') + '>';
+  }
+  else if( type.kind === Kind.NON_NULL_TYPE ) {
+    return getTypeString(type.type, type);
+  }
+  else if(type.kind === Kind.NAMED_TYPE) {
+    return (builtInScalarMap[type.name.value] || type.name.value) +
+      ((parentType||{}).kind !== Kind.NON_NULL_TYPE ? ' | null':'');
+  }
+  else throw new ToolError("Cannot generate type string [" + type.toString() + "]");
 }

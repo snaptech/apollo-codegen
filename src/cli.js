@@ -168,38 +168,92 @@ yargs
         describe: "Merge fragment fields onto its enclosing type",
         default: true,
         type: 'boolean'
+      },
+      "pascal-case": {
+        demand: false,
+        describe: "Generate type/interface names with Pascal casing",
+        default: false,
+        type: 'boolean'
+      },
+      "prefer-interfaces": {
+        demand: false,
+        describe: "Use interfaces over types",
+        default: false,
+        type: 'boolean'
+      },
+      "script-all-custom-types": {
+        demand: false,
+        describe: "Generate interfaces for all custom types regardless of whether they're used by an operation/Query/Mutation/Subscription",
+        default: false,
+        type: 'boolean'
+      },
+      "script-used-custom-types": {
+        demand: false,
+        describe: "Generate interfaces for custom types defined on an operation/Query/Mutation/Subscription",
+        default: false,
+        type: 'boolean'
+      },
+      "server-schema-only": {
+        demand: false,
+        describe: "Set all flags necessary to generate from server schema",
+        default: false,
+        type: 'boolean'
+      },
+      "variables-type-postfix": {
+        demand: false,
+        describe: "Override the postfix name for variables interface/type",
+        default: 'Variables',
+        type: 'string'
       }
     },
     argv => {
-      let { input } = argv;
+      try {
+        let {input} = argv;
 
-      // Use glob if the user's shell was unable to expand the pattern
-      if (input.length === 1 && glob.hasMagic(input[0])) {
-        input = glob.sync(input[0]);
+        // Use glob if the user's shell was unable to expand the pattern
+        if (input.length === 1 && glob.hasMagic(input[0])) {
+          input = glob.sync(input[0]);
+        }
+
+        const inputPaths = input
+          .map(input => path.resolve(input))
+          // Sort to normalize different glob expansions between different terminals.
+          .sort();
+
+        let schemaPaths = argv.schema ? [argv.schema] : [];
+        // Use glob if the user's shell was unable to expand the pattern
+        if (schemaPaths.length === 1 && glob.hasMagic(schemaPaths[0])) {
+          schemaPaths = glob.sync(schemaPaths[0]);
+        }
+
+        schemaPaths = schemaPaths
+          .map(schemaPath => path.resolve(schemaPath))
+          // Sort to normalize different glob expansions between different terminals.
+          .sort();
+
+        if (schemaPaths.length == 0) {
+          throw new ToolError( "Verify --schema argument. Unable to locate valid path.")
+        }
+
+        const options = {
+          passthroughCustomScalars: argv["passthrough-custom-scalars"] || argv["custom-scalars-prefix"] !== '',
+          customScalarsPrefix: argv["custom-scalars-prefix"] || '',
+          addTypename: argv["add-typename"],
+          namespace: argv.namespace,
+          operationIdsPath: argv["operation-ids-path"],
+          generateOperationIds: !!argv["operation-ids-path"],
+          mergeInFieldsFromFragmentSpreads: argv["merge-in-fields-from-fragment-spreads"],
+          pascalCase: argv['pascal-case'] || argv['server-schema-only'],
+          preferInterfaces: argv['prefer-interfaces'] || argv['server-schema-only'],
+          scriptUsedCustomTypes: argv['script-used-custom-types'] || argv['server-schema-only'],
+          scriptAllCustomTypes: argv['script-all-custom-types'],
+          variablesTypePostfix: argv['variables-type-postfix']
+        };
+        generate(inputPaths, schemaPaths, argv.output, argv.target, argv.tagName, options);
       }
-
-      const inputPaths = input
-        .map(input => path.resolve(input))
-        // Sort to normalize different glob expansions between different terminals.
-        .sort();
-
-      let schemaPaths = argv.schema ? [argv.schema] : [];
-      // Use glob if the user's shell was unable to expand the pattern
-      if (schemaPaths.length === 1 && glob.hasMagic(schemaPaths[0])) {
-        schemaPaths = glob.sync(schemaPaths[0]);
+      catch(error) {
+        handleError(error);
       }
-
-      const options = {
-        passthroughCustomScalars: argv["passthrough-custom-scalars"] || argv["custom-scalars-prefix"] !== '',
-        customScalarsPrefix: argv["custom-scalars-prefix"] || '',
-        addTypename: argv["add-typename"],
-        namespace: argv.namespace,
-        operationIdsPath: argv["operation-ids-path"],
-        generateOperationIds: !!argv["operation-ids-path"],
-        mergeInFieldsFromFragmentSpreads: argv["merge-in-fields-from-fragment-spreads"]
-      };
-
-      generate(inputPaths, schemaPaths, argv.output, argv.target, argv.tagName, options);
     },
   )
   .fail(function(message, error) {

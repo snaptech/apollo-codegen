@@ -4,14 +4,25 @@ import {
 } from '../utilities/printing';
 
 import { propertyDeclarations } from './codeGeneration';
-import { typeNameFromGraphQLType } from './types';
+import {getTypeString, typeNameFromGraphQLType} from './types';
 
 import { pascalCase } from 'change-case';
+import {getNamedTypeString} from "../utilities/graphql";
+import { Kind } from "graphql";
 
 export function interfaceDeclaration(generator, { interfaceName, noBrackets }, closure) {
   generator.printNewlineIfNeeded();
   generator.printNewline();
-  generator.print(`export type ${ interfaceName } = `);
+
+  if( generator.options.pascalCase )
+    interfaceName = pascalCase(interfaceName);
+
+  if( generator.options.preferInterfaces )
+    generator.print(`export interface ${ interfaceName } `);
+  else
+    generator.print(`export type ${ interfaceName } = `);
+
+
   generator.pushScope({ typeName: interfaceName });
   if (noBrackets) {
     generator.withinBlock(closure, '', '');
@@ -19,7 +30,28 @@ export function interfaceDeclaration(generator, { interfaceName, noBrackets }, c
     generator.withinBlock(closure, '{', '}');
   }
   generator.popScope();
-  generator.print(';');
+}
+
+
+
+export function operationDeclaration(generator, {
+  operation,
+  returnType,
+  fullReturnType
+}) {
+  generator.pushScope({ typeName: operation.name.value });
+  generator.printOnNewline(operation.name.value);
+  if (operation.arguments.length > 0) {
+    let argDefs = [];
+    operation.arguments.forEach((arg) => {
+      argDefs.push(arg.name.value + ":" + getTypeString(arg.type));
+    });
+    generator.print(`(${argDefs.join(',')})`);
+  }
+  if( returnType ) {
+    generator.print(` : ${typeNameFromGraphQLType(generator.context, returnType)}`);
+  }
+  generator.popScope();
 }
 
 export function propertyDeclaration(generator, {
@@ -82,7 +114,7 @@ export function propertyDeclaration(generator, {
 }
 
 export function propertySetsDeclaration(generator, property, propertySets, standalone = false) {
-  const { 
+  const {
     description, fieldName, propertyName, typeName,
     isNullable, isArray, isArrayElementNullable,
   } = property;

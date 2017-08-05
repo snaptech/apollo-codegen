@@ -45,7 +45,8 @@ import {
   filePathForNode,
   sourceAt,
   withTypenameFieldAddedWhereNeeded,
-  isBuiltInScalarType
+  isBuiltInScalarType,
+  getOperationSchemaDef
 } from './utilities/graphql';
 
 import { join, block, wrap, indent } from './utilities/printing';
@@ -61,6 +62,8 @@ export interface CompilerOptions {
   customScalarsPrefix?: string;
   namespace?: string;
   generateOperationIds?: boolean;
+  scriptAllCustomTypes?: boolean;
+  scriptUsedCustomTypes?: boolean;
 }
 
 export interface CompilationContext {
@@ -197,6 +200,13 @@ class Compiler {
       }
     }
 
+    if( options.scriptAllCustomTypes ) { //script whether used or not
+      for( let type in schema.getTypeMap( ) ) {
+        if( type.startsWith('_') ) continue; //private
+        this.addTypeUsed(schema.getTypeMap()[type]);
+      }
+    }
+
     this.compiledFragmentMap = new Map();
 
     this.compiledOperations = operations.map(this.compileOperation, this);
@@ -206,16 +216,18 @@ class Compiler {
   }
 
   addTypeUsed(type: GraphQLType) {
-    if (this.typesUsedSet.has(type)) return;
+    if (this.typesUsedSet.has(type) || (type instanceof GraphQLScalarType && isBuiltInScalarType(type))) return;
 
     if (
       type instanceof GraphQLEnumType ||
       type instanceof GraphQLInputObjectType ||
-      (type instanceof GraphQLScalarType && !isBuiltInScalarType(type))
-    ) {
+      type instanceof GraphQLScalarType ||
+      (type instanceof GraphQLObjectType && this.options.scriptUsedCustomTypes) ||
+      this.options.scriptAllCustomTypes) {
       this.typesUsedSet.add(type);
     }
-    if (type instanceof GraphQLInputObjectType) {
+    if (type instanceof GraphQLInputObjectType ||
+      (type instanceof GraphQLObjectType && this.options.scriptUsedCustomTypes)) {
       for (const field of Object.values(type.getFields())) {
         this.addTypeUsed(getNamedType(field.type));
       }
@@ -244,6 +256,12 @@ class Compiler {
 
     const source = print(operationDefinition);
     const rootType = getOperationRootType(this.schema, operationDefinition);
+
+    if( this.options.scriptUsedCustomTypes ) {
+      const operationSchema = getOperationSchemaDef(this.schema, operationDefinition.name.value);
+      if (operationSchema)
+        this.addTypeUsed(operationSchema.returnType);
+    }
 
     const groupedVisitedFragmentSet = new Map();
     const groupedFieldSet = this.collectFields(

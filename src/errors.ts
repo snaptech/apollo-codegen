@@ -28,7 +28,7 @@ export function logError(error: Error) {
       logErrorMessage(error.message, fileName);
     }
   } else {
-    console.log(error.stack);
+    console.error((error.message||error) + " Stack trace: " + (error.stack||''));
   }
 }
 
